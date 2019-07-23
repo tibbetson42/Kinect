@@ -66,31 +66,8 @@ def draw_skeleton_data(pSkelton, index, positions, width = 4):
 
         start = next
 
-# recipe to get address of surface: http://archives.seul.org/pygame/users/Apr-2008/msg00218.html
-if hasattr(ctypes.pythonapi, 'Py_InitModule4'):
-   Py_ssize_t = ctypes.c_int
-elif hasattr(ctypes.pythonapi, 'Py_InitModule4_64'):
-   Py_ssize_t = ctypes.c_int64
-else:
-   raise TypeError("Cannot determine type of Py_ssize_t")
-
-_PyObject_AsWriteBuffer = ctypes.pythonapi.PyObject_AsWriteBuffer
-_PyObject_AsWriteBuffer.restype = ctypes.c_int
-_PyObject_AsWriteBuffer.argtypes = [ctypes.py_object,
-                                  ctypes.POINTER(ctypes.c_void_p),
-                                  ctypes.POINTER(Py_ssize_t)]
-
-def surface_to_array(surface):
-   buffer_interface = surface.get_buffer()
-   address = ctypes.c_void_p()
-   size = Py_ssize_t()
-   _PyObject_AsWriteBuffer(buffer_interface,
-                          ctypes.byref(address), ctypes.byref(size))
-   bytes = (ctypes.c_byte * size.value).from_address(address.value)
-   bytes.object = buffer_interface
-   return bytes
-
 def draw_skeletons(skeletons):
+    print('draw skele called')
     for index, data in enumerate(skeletons):
         # draw the Head
         HeadPos = skeleton_to_depth_image(data.SkeletonPositions[JointId.Head], dispInfo.current_w, dispInfo.current_h)
@@ -103,6 +80,28 @@ def draw_skeletons(skeletons):
         draw_skeleton_data(data, index, LEFT_LEG)
         draw_skeleton_data(data, index, RIGHT_LEG)
 
+# recipe to get address of surface: http://archives.seul.org/pygame/users/Apr-2008/msg00218.html
+if hasattr(ctypes.pythonapi, 'Py_InitModule4'):
+    print('32bit')
+    Py_ssize_t = ctypes.c_int
+elif hasattr(ctypes.pythonapi, 'Py_InitModule4_64'):
+    print('64bit')
+    Py_ssize_t = ctypes.c_int64
+else:
+   raise TypeError("Cannot determine type of Py_ssize_t")
+
+_PyObject_AsWriteBuffer = ctypes.pythonapi.PyObject_AsWriteBuffer
+_PyObject_AsWriteBuffer.restype = ctypes.c_int
+_PyObject_AsWriteBuffer.argtypes = [ctypes.py_object, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(Py_ssize_t)]
+
+def surface_to_array(surface):
+   buffer_interface = surface.get_buffer()
+   address = ctypes.c_void_p()
+   size = Py_ssize_t()
+   _PyObject_AsWriteBuffer(buffer_interface, ctypes.byref(address), ctypes.byref(size))
+   bytes = (ctypes.c_byte * size.value).from_address(address.value)
+   bytes.object = buffer_interface
+   return bytes
 
 def depth_frame_ready(frame):
     if video_display:
@@ -144,15 +143,15 @@ if __name__ == '__main__':
     kinect = nui.Runtime()
     kinect.skeleton_engine.enabled = True
     def post_frame(frame):
+        print('post frame')
         try:
             pygame.event.post(pygame.event.Event(KINECTEVENT, skeletons = frame.SkeletonData))
-            print(frame.SkeletonData)
+            #print(frame.SkeletonData)
         except:
             # event queue full
             pass
 
     kinect.skeleton_frame_ready += post_frame
-
     kinect.depth_frame_ready += depth_frame_ready
     kinect.video_frame_ready += video_frame_ready
 
@@ -172,6 +171,7 @@ if __name__ == '__main__':
     while not done:
         e = pygame.event.wait()
         dispInfo = pygame.display.Info()
+        print(e.type)
         if e.type == pygame.QUIT:
             done = True
             break
