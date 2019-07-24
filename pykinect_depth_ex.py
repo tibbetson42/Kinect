@@ -11,46 +11,47 @@ import pygame
 from pygame.color import THECOLORS
 from pygame.locals import *
 
-KINECTEVENT = pygame.USEREVENT
-#DEPTH_WINSIZE = 320,240
-DEPTH_WINSIZE = 640,480
-VIDEO_WINSIZE = 640,480
-pygame.init()
+if True:
+    KINECTEVENT = pygame.USEREVENT
+    #DEPTH_WINSIZE = 320,240
+    DEPTH_WINSIZE = 640,480
+    VIDEO_WINSIZE = 640,480
+    pygame.init()
 
-SKELETON_COLORS = [THECOLORS["red"],
-                   THECOLORS["blue"],
-                   THECOLORS["green"],
-                   THECOLORS["orange"],
-                   THECOLORS["purple"],
-                   THECOLORS["yellow"],
-                   THECOLORS["violet"]]
+    SKELETON_COLORS = [THECOLORS["red"],
+                       THECOLORS["blue"],
+                       THECOLORS["green"],
+                       THECOLORS["orange"],
+                       THECOLORS["purple"],
+                       THECOLORS["yellow"],
+                       THECOLORS["violet"]]
 
-LEFT_ARM = (JointId.ShoulderCenter,
-            JointId.ShoulderLeft,
-            JointId.ElbowLeft,
-            JointId.WristLeft,
-            JointId.HandLeft)
-RIGHT_ARM = (JointId.ShoulderCenter,
-             JointId.ShoulderRight,
-             JointId.ElbowRight,
-             JointId.WristRight,
-             JointId.HandRight)
-LEFT_LEG = (JointId.HipCenter,
-            JointId.HipLeft,
-            JointId.KneeLeft,
-            JointId.AnkleLeft,
-            JointId.FootLeft)
-RIGHT_LEG = (JointId.HipCenter,
-             JointId.HipRight,
-             JointId.KneeRight,
-             JointId.AnkleRight,
-             JointId.FootRight)
-SPINE = (JointId.HipCenter,
-         JointId.Spine,
-         JointId.ShoulderCenter,
-         JointId.Head)
+    LEFT_ARM = (JointId.ShoulderCenter,
+                JointId.ShoulderLeft,
+                JointId.ElbowLeft,
+                JointId.WristLeft,
+                JointId.HandLeft)
+    RIGHT_ARM = (JointId.ShoulderCenter,
+                 JointId.ShoulderRight,
+                 JointId.ElbowRight,
+                 JointId.WristRight,
+                 JointId.HandRight)
+    LEFT_LEG = (JointId.HipCenter,
+                JointId.HipLeft,
+                JointId.KneeLeft,
+                JointId.AnkleLeft,
+                JointId.FootLeft)
+    RIGHT_LEG = (JointId.HipCenter,
+                 JointId.HipRight,
+                 JointId.KneeRight,
+                 JointId.AnkleRight,
+                 JointId.FootRight)
+    SPINE = (JointId.HipCenter,
+             JointId.Spine,
+             JointId.ShoulderCenter,
+             JointId.Head)
 
-skeleton_to_depth_image = nui.SkeletonEngine.skeleton_to_depth_image
+    skeleton_to_depth_image = nui.SkeletonEngine.skeleton_to_depth_image
 
 def draw_skeleton_data(pSkelton, index, positions, width = 4):
     start = pSkelton.SkeletonPositions[positions[0]]
@@ -67,7 +68,7 @@ def draw_skeleton_data(pSkelton, index, positions, width = 4):
         start = next
 
 def draw_skeletons(skeletons):
-    print('draw skele called')
+    #print('draw skele called')
     for index, data in enumerate(skeletons):
         # draw the Head
         HeadPos = skeleton_to_depth_image(data.SkeletonPositions[JointId.Head], dispInfo.current_w, dispInfo.current_h)
@@ -99,11 +100,14 @@ def surface_to_array(surface):
    address = ctypes.c_void_p()
    size = Py_ssize_t()
    _PyObject_AsWriteBuffer(buffer_interface, ctypes.byref(address), ctypes.byref(size))
+   #print(size.value)
    bytes = (ctypes.c_byte * size.value).from_address(address.value)
    bytes.object = buffer_interface
    return bytes
 
 def depth_frame_ready(frame):
+    print('depth')
+    #import pdb; pdb.set_trace()
     if video_display:
         return
 
@@ -117,6 +121,7 @@ def depth_frame_ready(frame):
 
 
 def video_frame_ready(frame):
+
     if not video_display:
         return
 
@@ -143,7 +148,8 @@ if __name__ == '__main__':
     kinect = nui.Runtime()
     kinect.skeleton_engine.enabled = True
     def post_frame(frame):
-        print('post frame')
+        import pdb; pdb.set_trace()
+        #print('post frame')
         try:
             pygame.event.post(pygame.event.Event(KINECTEVENT, skeletons = frame.SkeletonData))
             #print(frame.SkeletonData)
@@ -158,41 +164,45 @@ if __name__ == '__main__':
     kinect.video_stream.open(nui.ImageStreamType.Video, 2, nui.ImageResolution.Resolution640x480, nui.ImageType.Color)
     kinect.depth_stream.open(nui.ImageStreamType.Depth, 2, nui.ImageResolution.Resolution640x480, nui.ImageType.Depth)
 
-    print('Controls: ')
-    print('     d - Switch to depth view')
-    print('     v - Switch to video view')
-    print('     s - Toggle displaing of the skeleton')
-    print('     u - Increase elevation angle')
-    print('     j - Decrease elevation angle')
+    # print('Controls: ')
+    # print('     d - Switch to depth view')
+    # print('     v - Switch to video view')
+    # print('     s - Toggle displaing of the skeleton')
+    # print('     u - Increase elevation angle')
+    # print('     j - Decrease elevation angle')
 
     # main game loop
     done = False
-
     while not done:
         e = pygame.event.wait()
         dispInfo = pygame.display.Info()
-        print(e.type)
         if e.type == pygame.QUIT:
+            print('quit',e.type)
             done = True
             break
         elif e.type == KINECTEVENT:
+            print('kinect frame',e.type)
             skeletons = e.skeletons
             if draw_skeleton:
                 draw_skeletons(skeletons)
                 pygame.display.update()
         elif e.type == KEYDOWN:
+            print('quit',e.type)
             if e.key == K_ESCAPE:
                 done = True
                 break
             elif e.key == K_d:
+                print('depth',e.type)
                 with screen_lock:
                     screen = pygame.display.set_mode(DEPTH_WINSIZE,0,16)
                     video_display = False
             elif e.key == K_v:
+                print('video',e.type)
                 with screen_lock:
                     screen = pygame.display.set_mode(VIDEO_WINSIZE,0,16)
                     video_display = True
             elif e.key == K_s:
+                print('skeletons {}'.format(not draw_skeleton,e.type))
                 draw_skeleton = not draw_skeleton
             elif e.key == K_u:
                 kinect.camera.elevation_angle = kinect.camera.elevation_angle + 2
