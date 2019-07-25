@@ -148,7 +148,7 @@ if __name__ == '__main__':
     kinect = nui.Runtime()
     kinect.skeleton_engine.enabled = True
     def post_frame(frame):
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         #print('post frame')
         try:
             pygame.event.post(pygame.event.Event(KINECTEVENT, skeletons = frame.SkeletonData))

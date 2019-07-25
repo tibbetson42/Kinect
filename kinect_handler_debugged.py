@@ -73,15 +73,22 @@ class kinect_handler:
        frame.image.copy_bits(bytes)
 
     def draw_skeletons(self):
-        #print('skele draw')
         for idx,skeleton in enumerate(self.skeletons):
-            color =  SKELETON_COLORS[idx]
-            self.draw_bodypart(skeleton,  SPINE,     color)
-            self.draw_bodypart(skeleton,  LEFT_ARM,  color)
-            self.draw_bodypart(skeleton,  RIGHT_ARM, color)
-            if not self.SEATED:
-                self.draw_bodypart(skeleton,  LEFT_LEG,  color)
-                self.draw_bodypart(skeleton,  RIGHT_LEG, color)
+            if skeleton.tracking_state:
+                print(idx),
+                print(skeleton.get_skeleton_positions()[JointId.Head]),
+                print(' ')
+                color =  SKELETON_COLORS[idx]
+                self.draw_bodypart(skeleton,  SPINE,     color)
+                self.draw_bodypart(skeleton,  LEFT_ARM,  color)
+                self.draw_bodypart(skeleton,  RIGHT_ARM, color)
+                if not self.SEATED:
+                    self.draw_bodypart(skeleton,  LEFT_LEG,  color)
+                    self.draw_bodypart(skeleton,  RIGHT_LEG, color)
+            else:
+                print(idx),
+                print(' not tracked'),
+                print(' ')
 
     def draw_bodypart(self,skeleton, Joint_Indexes, color, width = 3):
         thisJointXYZ = skeleton.SkeletonPositions[Joint_Indexes[0]]
@@ -102,7 +109,9 @@ class kinect_handler:
         with self.thread:
             self.copy_to_screen(frame)
             if self.skeletons is not None and self.DRAW_SKELETONS:
+                #import pdb; pdb.set_trace()
                 self.draw_skeletons()
+                #pass
             pygame.display.update()
 
     def video_frame_ready(self,frame):
@@ -112,10 +121,12 @@ class kinect_handler:
             self.copy_to_screen(frame)
             if self.skeletons is not None and self.DRAW_SKELETONS:
                 self.draw_skeletons()
+                #pass
             pygame.display.update()
 
     def post_skeleton_frame(self,frame):
         try:
+            #print('post frame')
             pygame.event.post(pygame.event.Event(KINECTEVENT, skeletons = frame.SkeletonData))
         except:
             print('error: event queue full')
@@ -126,11 +137,11 @@ class kinect_handler:
             print('quit',event.type)
             self.done = True
         elif event.type == KINECTEVENT:
-            print('kinect frame',event.type)
+            #print('kinect frame',event.type)
             self.skeletons = event.skeletons
-            if self.DRAW_SKELETONS:
-                self.draw_skeletons()
-                pygame.display.update()
+            #if self.DRAW_SKELETONS:
+                #self.draw_skeletons()
+                #pygame.display.update()
         elif event.type == KEYDOWN:
             print('quit',event.type)
             if event.key == K_ESCAPE:
