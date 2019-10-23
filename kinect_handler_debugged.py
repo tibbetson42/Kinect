@@ -1,7 +1,8 @@
-
 import thread
 import itertools
 import ctypes
+import datetime as dt
+import numpy as np
 
 import pykinect
 from pykinect import nui
@@ -12,9 +13,11 @@ from pygame.color import THECOLORS
 from pygame.locals import *
 
 KINECTEVENT = pygame.USEREVENT
-#DEPTH_WINSIZE = 320,240
-DEPTH_WINSIZE = 640,480
+DEPTH_WINSIZE = 320,240
+#DEPTH_WINSIZE = 640,480
+DEPTH_RES_TAG = nui.ImageResolution.Resolution320x240
 VIDEO_WINSIZE = 640,480
+VIDEO_RES_TAG = nui.ImageResolution.Resolution640x480
 pygame.init()
 # Colors #---------------------------------------------
 SKELETON_COLORS = [ THECOLORS["red"],   THECOLORS["blue"],  THECOLORS["green"],
@@ -34,6 +37,7 @@ LEFT_LEG =  (JointId.HipCenter, JointId.HipLeft, JointId.KneeLeft,
 
 RIGHT_LEG = (JointId.HipCenter, JointId.HipRight, JointId.KneeRight,
              JointId.AnkleRight, JointId.FootRight)
+
 print('initialization complete')
 
 class kinect_handler:
@@ -48,6 +52,9 @@ class kinect_handler:
         self.screen = screen
         self.skeletons = None
         self.done = False
+        self.timestamp = None
+        self.FPS = 0
+        self.framecounter = 1.0
         # Buffer information/address functions for self.copy_to_screen
         # recipe to get address of surface(or screen): http://archives.seul.org/pygame/users/Apr-2008/msg00218.html
         if hasattr(ctypes.pythonapi, 'Py_InitModule4'):
@@ -63,21 +70,25 @@ class kinect_handler:
         self._PyObject_AsWriteBuffer.argtypes = [ctypes.py_object, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(self.Py_ssize_t)]
 
     def copy_to_screen(self,frame):
-       buffer_interface = self.screen.get_buffer()
-       address = ctypes.c_void_p()
-       size = self.Py_ssize_t()
-       self._PyObject_AsWriteBuffer(buffer_interface, ctypes.byref(address), ctypes.byref(size))
-       #print(size.value)
-       bytes = (ctypes.c_byte * size.value).from_address(address.value)
-       bytes.object = buffer_interface
-       frame.image.copy_bits(bytes)
+        if not self.done:
+            buffer_interface = self.screen.get_buffer()
+            address = ctypes.c_void_p()
+            size = self.Py_ssize_t()
+            self._PyObject_AsWriteBuffer(buffer_interface, ctypes.byref(address), ctypes.byref(size))
+            #print(size.value)
+            bytes = (ctypes.c_byte * size.value).from_address(address.value)
+            bytes.object = buffer_interface
+            frame.image.copy_bits(bytes)
 
     def draw_skeletons(self):
         for idx,skeleton in enumerate(self.skeletons):
             if skeleton.tracking_state:
-                print(idx),
-                print(skeleton.get_skeleton_positions()[JointId.Head]),
-                print(' ')
+
+                #print(idx),
+                bone_or = skeleton.calculate_bone_orientations()[JointId.ElbowLeft]
+                #print(bone_or),
+                #print(' ')
+                #import pdb; pdb.set_trace()
                 color =  SKELETON_COLORS[idx]
                 self.draw_bodypart(skeleton,  SPINE,     color)
                 self.draw_bodypart(skeleton,  LEFT_ARM,  color)
@@ -86,9 +97,10 @@ class kinect_handler:
                     self.draw_bodypart(skeleton,  LEFT_LEG,  color)
                     self.draw_bodypart(skeleton,  RIGHT_LEG, color)
             else:
-                print(idx),
-                print(' not tracked'),
-                print(' ')
+                pass
+                #print(idx),
+                #print(' not tracked'),
+                #print(' ')
 
     def draw_bodypart(self,skeleton, Joint_Indexes, color, width = 3):
         thisJointXYZ = skeleton.SkeletonPositions[Joint_Indexes[0]]
@@ -100,7 +112,7 @@ class kinect_handler:
             nextJointPxls = nui.SkeletonEngine.skeleton_to_depth_image(nextJointXYZ, self.info.current_w, self.info.current_h)
             pygame.draw.line(self.screen, color, thisJointPxls,nextJointPxls,width)
             if joint.value == JointId.Head:
-                pygame.draw.circle(self.screen, color, (int(nextJointPxls[0]),int(nextJointPxls[1])),10*width,0)
+                pygame.draw.circle(self.screen, color, (int(nextJointPxls[0]),int(nextJointPxls[1])),7*width,0)
             thisJointXYZ = nextJointXYZ
 
     def depth_frame_ready(self,frame):
@@ -127,7 +139,14 @@ class kinect_handler:
     def post_skeleton_frame(self,frame):
         try:
             #print('post frame')
+            if self.timestamp is not None:
+                thisFPS = 1.0/(dt.datetime.now() - self.timestamp).total_seconds()
+                self.FPS = (self.FPS * self.framecounter + thisFPS)/(self.framecounter+1.0)
+                self.framecounter += 1.0
+                #print('FPS: {}\r'.format(self.FPS))
+            self.timestamp = dt.datetime.now()
             pygame.event.post(pygame.event.Event(KINECTEVENT, skeletons = frame.SkeletonData))
+
         except:
             print('error: event queue full')
             pass
@@ -135,16 +154,20 @@ class kinect_handler:
     def event_decision(self,event):
         if event.type == pygame.QUIT:
             print('quit',event.type)
+            print('Skeleton average FPS: {}\r'.format(self.FPS))
             self.done = True
         elif event.type == KINECTEVENT:
             #print('kinect frame',event.type)
+
             self.skeletons = event.skeletons
             #if self.DRAW_SKELETONS:
                 #self.draw_skeletons()
                 #pygame.display.update()
         elif event.type == KEYDOWN:
-            print('quit',event.type)
+
             if event.key == K_ESCAPE:
+                print('quit',event.type)
+                print('FPS: {}\r'.format(self.FPS))
                 self.done = True
             elif event.key == K_d:
                 print('depth',event.type)
@@ -178,8 +201,8 @@ if __name__ == '__main__':
     kinect.skeleton_frame_ready += handler.post_skeleton_frame
     kinect.depth_frame_ready += handler.depth_frame_ready
     kinect.video_frame_ready += handler.video_frame_ready
-    kinect.video_stream.open(nui.ImageStreamType.Video, 2, nui.ImageResolution.Resolution640x480, nui.ImageType.Color)
-    kinect.depth_stream.open(nui.ImageStreamType.Depth, 2, nui.ImageResolution.Resolution640x480, nui.ImageType.Depth)
+    kinect.video_stream.open(nui.ImageStreamType.Video, 2, VIDEO_RES_TAG, nui.ImageType.Color)
+    kinect.depth_stream.open(nui.ImageStreamType.Depth, 2, DEPTH_RES_TAG, nui.ImageType.Depth)
 
     # print('Controls: ')
     # print('     h - Show this message')

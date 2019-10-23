@@ -2,6 +2,7 @@
 import thread
 import itertools
 import ctypes
+import datetime as dt
 
 import pykinect
 from pykinect import nui
@@ -11,10 +12,12 @@ import pygame
 from pygame.color import THECOLORS
 from pygame.locals import *
 
+
+
 if True:
     KINECTEVENT = pygame.USEREVENT
-    #DEPTH_WINSIZE = 320,240
-    DEPTH_WINSIZE = 640,480
+    DEPTH_WINSIZE = 320,240
+    #DEPTH_WINSIZE = 640,480
     VIDEO_WINSIZE = 640,480
     pygame.init()
 
@@ -106,7 +109,7 @@ def surface_to_array(surface):
    return bytes
 
 def depth_frame_ready(frame):
-    print('depth')
+    #print('depth')
     #import pdb; pdb.set_trace()
     if video_display:
         return
@@ -134,6 +137,8 @@ def video_frame_ready(frame):
         pygame.display.update()
 
 if __name__ == '__main__':
+    # FPS = 0
+    # timestamp = None
     full_screen = False
     draw_skeleton = True
     video_display = False
@@ -162,7 +167,7 @@ if __name__ == '__main__':
     kinect.video_frame_ready += video_frame_ready
 
     kinect.video_stream.open(nui.ImageStreamType.Video, 2, nui.ImageResolution.Resolution640x480, nui.ImageType.Color)
-    kinect.depth_stream.open(nui.ImageStreamType.Depth, 2, nui.ImageResolution.Resolution640x480, nui.ImageType.Depth)
+    kinect.depth_stream.open(nui.ImageStreamType.Depth, 2, nui.ImageResolution.Resolution320x240, nui.ImageType.Depth)
 
     # print('Controls: ')
     # print('     d - Switch to depth view')
@@ -178,10 +183,11 @@ if __name__ == '__main__':
         dispInfo = pygame.display.Info()
         if e.type == pygame.QUIT:
             print('quit',e.type)
+            print(FPS)
             done = True
             break
         elif e.type == KINECTEVENT:
-            print('kinect frame',e.type)
+            #print('kinect frame',e.type)
             skeletons = e.skeletons
             if draw_skeleton:
                 draw_skeletons(skeletons)
@@ -190,6 +196,7 @@ if __name__ == '__main__':
             print('quit',e.type)
             if e.key == K_ESCAPE:
                 done = True
+                print(FPS)
                 break
             elif e.key == K_d:
                 print('depth',e.type)
