@@ -6,7 +6,7 @@ from tensorflow.keras.utils import Sequence
 import pdb;
 # ---------------------------------------------------------------------------- #
 # CONSTANTS
-PATH = 'XYZ_Data/'
+PATH = 'E:/XYZ_Data/'
 NUM_JOINTS = 32 #31 local coordinates + 1 global coordinate
 NF = 12 # 0.2 seconds predicted
 NB = 15 # 0.25 previous seconds considered
@@ -52,6 +52,7 @@ def saveXYtoMAT(X,Y,subject,NB,NF,path = None):
         filename = path + filename
     pdb.set_trace()
     scipy.io.savemat(filename,XY,appendmat = False)
+
 def loadXYfromMAT(subject,NB,NF,path = None):
     if len('{}'.format(subject)) == 1:
         Stag = '0{}'.format(subject)
@@ -69,7 +70,7 @@ def getTrialXY(data,fps):
     # want output shape to be (samples,NF,32,3)
     # samples, frames from the 'future', 31 joints + 1 global coordinate, xyz
     ratio       = int(fps/TARGET_FPS)
-    samples     = len(xyz) - ratio*NF - ratio*(NB-1)
+    samples     = len(data) - ratio*NF - ratio*(NB-1)
     framesAgo   = ratio*(NB-1)
     framesAhead = ratio*NF
     Y           = np.zeros((samples,NF,NUM_JOINTS,3))
