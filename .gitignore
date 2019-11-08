@@ -1,3 +1,5 @@
 # /Kinect ignore
 *.pyc
 /MATLAB
+/ASF_AMC
+/SkeletonBasics-D2D

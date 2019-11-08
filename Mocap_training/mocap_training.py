@@ -40,29 +40,43 @@ model.compile(
     loss = 'mean_squared_error',
     optimizer = Adam(lr = 0.001),
 )
-# modeltest.compile(
-#     loss = 'mean_squared_error',
-#     optimizer = Adam(lr = 0.001),
-# )
+modeltest.compile(
+    loss = 'mean_squared_error',
+    optimizer = Adam(lr = 0.001),
+)
 
-training_generator = cf.MY_Generator(batch_size = 1,subjects = [1,2,3,4,5], testing = True)
-print(len(training_generator))
+training_generator = cf.MY_Generator(batch_size = 32,subjects = [1], testing = True)
+print('num of batches:  ',len(training_generator))
 # trial_metadata = scipy.io.loadmat(PATH + 'trial_metadata')
 # fps_trials = np.array(trial_metadata['fps_trials'][0])
 # num_trials =  np.array(trial_metadata['num_trials'][0])
 # num_samples =  np.array(trial_metadata['num_samples'][0])
-re,de,fe = cf.loadMocapFromMAT(cf.PATH,1,1)
-XX,YY = cf.getTrialXY(de,fe,batch_size = 32,batch_num = 0)
-# YY = 2*XX[:,0:12,:,:]
+
+
+# if testing, just do linear scaling see if can model
+if training_generator.testing:
+    re,de,fe = cf.loadMocapFromMAT(cf.PATH,1,1)
+    XX,YY = cf.getTrialXY(de,fe)
+    YY = 2*XX[:,0:12,:,:]
+    filename = 'history_test'
+else: #otherwise, look at comparison between fit and generator with subject 1
+    XX,YY = cf.getSubjectXY(1)
+    filename = 'history'
 #
-# historytest = modeltest.fit(XX,YY,epochs = 50,batch_size = 2699)
-# history = model.fit_generator(generator = training_generator,epochs = 50)
+#pdb.set_trace()
+historytest = modeltest.fit(XX,YY,epochs = 20)
+history = model.fit_generator(generator = training_generator,epochs = 20)
 #
-# plt.plot(historytest.history['loss'])
-# plt.plot(history.history['loss'])
-# plt.ylabel('Loss')
-# plt.xlabel('Epoch')
-# plt.legend(['fit', 'gen'], loc='upper right')
+plt.plot(historytest.history['loss'])
+plt.plot(history.history['loss'])
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(['fit', 'gen'], loc='upper right')
+plt.show()
+
+
+results = dict([('generator',history.history['loss']),('fit',historytest.history['loss'])])
+scipy.io.savemat(filename,results)
 #
 # re,de,fe = loadMocapFromMAT(PATH,5,1)
 # XX,YY = getTrialXY(de,fe)
@@ -70,6 +84,6 @@ XX,YY = cf.getTrialXY(de,fe,batch_size = 32,batch_num = 0)
 # Ytest = modeltest.predict(XX)
 # print(np.sum(XX),np.sum(Y),np.sum(Ytest))
 
-pdb.set_trace()
+
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
