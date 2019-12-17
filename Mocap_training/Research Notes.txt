@@ -1,0 +1,24 @@
+Research Notes:
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+Fall 2019
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+12/16/2019
+  # saved massive validation on model dec8_validated_s1-24_j20_l40_b512
+      - error graph saved. max error around 7 inches, corresponds to trial 27
+      - involved a lot of sideways movement. Clearly unnatural, at least in
+        comparison to the other trials largely involving running/walking
+  # NOTE  that if most of the data had a certain orientation, the data is skewed
+    because it does not see the movement as much if body facing left as is it is
+    right
+      - fix by training also on a 90 degree rotation?
+
+12/17/2019
+  # More on fixing orientation problem. Could build a random rotation matrix
+   (leave z coordinate alone), rotate whole body by that (between 0 and 360)
+   Would just incorporate straight into the generator.
+  # Downloaded textbook with adaptive prediction on page 110. Adaptive
+  Filtering, Prediction and Control, Kwai Sang in. ref 18 in cheng paper.
+  # going to train, randomly rotate each batch
+  # TODO also try with randomly rotating every X,Y pair
