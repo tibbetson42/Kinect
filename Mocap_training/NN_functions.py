@@ -19,6 +19,7 @@ import pdb;
 # ---------------------------------------------------------------------------- #
 # CONSTANTS
 PATH = 'E:/XYZ_Data/'
+MODEL_PATH = 'Models/'
 #PATH = 'XYZ_Data/'
 NUM_JOINTS = 31 #31 local coordinates + 1 global coordinate
 NF = 3 # 0.2 seconds predicted
@@ -31,17 +32,17 @@ TARGET_FPS = 60 #FPS we expect to process at. most mocap was recorded at 120
 # condense by slidign windows
 # add input skipping N number of frames when building
 
-def create_model(layer1 = 40, layer2 = 40,joints = sk.FULL_BODY,for_adapter = False):
+def create_model(layer1 = 40, layer2 = 40,num_joints = 31,for_adapter = False):
     #Create Model
     model = tf.keras.models.Sequential([
-        tf.keras.layers.InputLayer( input_shape = ( NB,len(joints),3) ),
+        tf.keras.layers.InputLayer( input_shape = ( NB,num_joints,3) ),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(40,activation = 'relu'),
         tf.keras.layers.Dense(40,activation = 'relu')
     ])
     if not for_adapter:
-        model.add(   tf.keras.layers.Dense( NF*len(joints)*3 )   )
-        model.add(   tf.keras.layers.Reshape( (NF,len(joints),3) )  )
+        model.add(   tf.keras.layers.Dense( NF*num_joints*3 )   )
+        model.add(   tf.keras.layers.Reshape( (NF,num_joints,3) )  )
 
     from tensorflow.keras.optimizers import Adam
     model.compile(
@@ -331,34 +332,105 @@ class DataLoader():
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class Weight_Adapter():
-    def __init__(self,model,jnts,layers,fps):
+    def __init__(self,model,sampleX):
+
         weights = model.get_weights();
         # Initialize per cheng paper on adaptive weights
-
+        num_joints = sampleX[0].shape[-2]
+        layers = weights[0].shape[1]
         # Offline trained model - everything but last layer
         self.U = [weights[i] for i in range(0,len(weights)-2)]
-        self.g = create_model(layer1 =layers, layer2 = layers,joints = jnts,for_adapter = True)
+        self.g = create_model(layer1 =layers, layer2 = layers,num_joints = num_joints,for_adapter = True)
         # also pass one sample to it to initialize
-        mock_generator = MY_Generator(batch_size = 1, subjects = [1],joints = jnts, target_fps = fps,randomize_direction= True, suppress = True)
-        X,Y = mock_generator[0]
-        g_out = self.g.predict(X)
+        #pdb.set_trace()
+        g_out = self.g.predict(sampleX)
         self.g.set_weights(self.U)
 
         #Format adaptive weights. W is in NN format, Theta is column stack of W
         self.W = weights[-2::]
         self.Theta = self.W2Theta(self.W)
 
+        # Initialize state variables. X = past window, true value
+        self.Xest = None
+        self.X = None
+        self.Xerr = None
+        self.Xshape = sampleX.shape
+        self.Glength = len(g_out) + 1
+
         # Adaption Gain
-        self.F = 1000 * np.eye(len(self.W))
+        self.F = 100 * np.eye(len(self.Theta))
 
         # Learning parameters
         self.Lambda1 = 0.998
         self.Lambda2 = 1.0
+
+        return
+
+    def start(self,X):
+        print('starting...')
+        self.X = X
+        self.Phi   = self.getPhi( self.g.predict(self.X) )
+        self.Xest = np.matmul( self.Phi, self.Theta ).reshape(self.Xshape)
+        # new data flag
+        self.new = False
+        #pdb.set_trace()
+        return
+
+    def feedData(self,X):
+        print('feeding data')
+        self.X = X
+        self.new = True
+        return
+
+    def mainLoop(self):
+        print('mainLoop start')
+        #pdb.set_trace()
+        if not self.new:
+            return
+        self.Xerr  = (self.X - self.Xest)
+        self.Theta = self.updateTheta( self.Theta, self.F, self.Phi, self.Xerr.reshape((-1,1)))
+        self.F     = self.updateF( self.F, self.Phi )
+        self.Phi   = self.getPhi( self.g.predict(self.X) )
+        self.Xest  = np.matmul( self.Phi, self.Theta ).reshape(self.Xshape)
+        self.new = False
+        print('mainLoop end')
         pdb.set_trace()
         return
 
-    def Theta2W(self, Theta):
-        return
+    def getPhi(self,g_out):
+        g_out = np.append(g_out.reshape((1,-1)),1)
+        Phi = g_out
+        for i in range(0,self.W[0].shape[1]-1):
+            Phi = linalg.block_diag(Phi,g_out)
+        return Phi
+
+    def updateF(self,F,Phi):
+        #equation 7 in cheng's paper
+        L1 = self.Lambda1
+        L2 = self.Lambda2
+
+        # Simplfication of writing
+        PhiT = Phi.transpose()
+
+        # Denominator as a matrix
+        scaling = np.linalg.inv(L1 + L2 * np.linalg.multi_dot( [ Phi, F, PhiT ]  ))
+
+        # Scale denominator (9x9 if X is 9x1) to match F (369x369 if 40 hidden layer nodes)
+        dg = np.diag(scaling)
+        Sdiag = np.zeros(Phi.shape[1])
+        for si, s in enumerate(dg):
+            Sdiag[si:si + self.Glength] = s
+        S = np.diag(Sdiag)
+
+        # Evaluate
+        F_plus = 1/L1 * (F  - L2 * np.linalg.multi_dot([F,PhiT,Phi,F,S]))
+        return F_plus
+
+    def updateTheta(self,Theta,F,Phi,error):
+        Theta_plus = self.Theta + np.linalg.multi_dot([F,Phi.transpose(),error])
+        return Theta_plus
+
+
 
     def W2Theta(self, W):
         Theta = None
@@ -369,32 +441,3 @@ class Weight_Adapter():
             else:
                 Theta = np.vstack([Theta,ti])
         return Theta
-
-    def getPhi(self,g_out):
-        g_out = np.append(g_out.reshape((1,-1)),1)
-        Phi = g_out
-        for i in range(0,self.W[0].shape[1]-1):
-            Phi = linalg.block_diag(Phi,g_out)
-        return Phi
-
-
-    def updateF(self):
-        #equation 7 in cheng's paper
-        F = self.F
-        Phi = self.Phi
-        L1 = self.Lambda1
-        L2 = self.Lambda2
-        F_P_Pt_F = np.multi_dot(  [ F, Phi, Phi.tranpose(), F ]  )
-        Pt_F_P =   np.multi_dot(  [ Phi.transpose(), F, Phi ]    )
-        scaling = L1/(L1 + L2 * Pt_F_P)
-
-        F_kp1 = 1/L1 * (F  - scaling*F_P_Pt_F)
-        return F_kp1
-
-
-
-    class parameter():
-        def __init__(self,x0):
-            self.k = x0
-            self.est
-            self.err

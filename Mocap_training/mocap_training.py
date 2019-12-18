@@ -43,7 +43,7 @@ for batch_size in batch_sizes:
         for joints in joint_sets:
             filetag = dm.params2filename(label,training_subjects,joints,layer_size,batch_size,target_fps)
             files.append(filetag)
-            checkpoint_path = "{}/cp.ckpt".format(filetag)
+            checkpoint_path = "{}{}/cp.ckpt".format(cf.MODEL_PATH,filetag)
             #pdb.set_trace()
             checkpoint_dir = os.path.dirname(checkpoint_path)
 
@@ -57,7 +57,7 @@ for batch_size in batch_sizes:
                                                              save_weights_only=True,
                                                              verbose=1)
 
-            model = cf.create_model(layer1 = layer_size,layer2 = layer_size,joints = joints)
+            model = cf.create_model(layer1 = layer_size,layer2 = layer_size,num_joints = len(joints))
 
             if os.path.isdir("training_test_{}".format(filetag)):
                 print(' weights exist for this training set, would you like to load them?')
@@ -72,8 +72,8 @@ for batch_size in batch_sizes:
                     print('exiting...')
                     quit()
 
-            hist_file = '{}/history_{}'.format(checkpoint_dir,filetag)
-            model_file = '{}/model_{}.h5'.format(checkpoint_dir,filetag)
+            hist_file = '{}{}/history_{}'.format(cf.MODEL_PATH,checkpoint_dir,filetag)
+            model_file = '{}{}/model_{}.h5'.format(cf.MODEL_PATH,checkpoint_dir,filetag)
 
             if validation:
                 history = model.fit_generator(generator = training_generator, validation_data = validation_generator, epochs = epochs,callbacks=[cp_callback])

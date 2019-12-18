@@ -22,3 +22,7 @@ Fall 2019
   Filtering, Prediction and Control, Kwai Sang in. ref 18 in cheng paper.
   # going to train, randomly rotate each batch
   # TODO also try with randomly rotating every X,Y pair
+
+12/18/19
+  # NOTE suspect equation 7 of the cheng paper has incorrect tranpose markings on Phi
+      - equation (6) has correct shapes but (7) does not
