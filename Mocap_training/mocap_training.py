@@ -5,7 +5,7 @@ import tensorflow      as tf
 import itertools
 import pdb;
 import datetime
-import NN_functions    as cf
+import NN_functions    as nnf
 import SKELETON_LAYOUT as sk
 import DataManagement  as dm
 # ---------------------------------------------------------------------------- #
@@ -30,7 +30,7 @@ validation = True
 target_fps = 30
 epochs = 50
 batch_sizes = [512] #batch_sizes = [128,256,512,1024,2048]
-layer_sizes = [40,100] #layer_sizes = [40,100,cf.NB*cf.NUM_JOINTS,cf.NB*cf.NUM_JOINTS*3,cf.NB*cf.NUM_JOINTS*9]
+layer_sizes = [40,100] #layer_sizes = [40,100,nnf.NB*nnf.NUM_JOINTS,nnf.NB*nnf.NUM_JOINTS*3,nnf.NB*nnf.NUM_JOINTS*9]
 joint_sets =  [sk.ARM_LEFT,np.array([sk.WRIST_LEFT])]
 label = 'dec17_randomized'
 
@@ -43,13 +43,13 @@ for batch_size in batch_sizes:
         for joints in joint_sets:
             filetag = dm.params2filename(label,training_subjects,joints,layer_size,batch_size,target_fps)
             files.append(filetag)
-            checkpoint_path = "{}{}/cp.ckpt".format(cf.MODEL_PATH,filetag)
+            checkpoint_path = "{}{}/cp.ckpt".format(nnf.MODEL_PATH,filetag)
             #pdb.set_trace()
             checkpoint_dir = os.path.dirname(checkpoint_path)
 
-            training_generator = cf.MY_Generator(batch_size = batch_size, subjects = training_subjects, target_fps = target_fps, threading = threading, joints = joints, randomize_direction = True)
+            training_generator = nnf.MY_Generator(batch_size = batch_size, subjects = training_subjects, target_fps = target_fps, threading = threading, joints = joints, randomize_direction = True,init_str = 'training')
             if validation:
-                validation_generator = cf.MY_Generator(batch_size = batch_size, subjects = validation_subjects, target_fps = target_fps, threading = threading, joints = joints, randomize_direction = True )
+                validation_generator = nnf.MY_Generator(batch_size = batch_size, subjects = validation_subjects, target_fps = target_fps, threading = threading, joints = joints, randomize_direction = True, init_str = 'validation' )
 
 
             # Create a callback that saves the model's weights
@@ -57,7 +57,7 @@ for batch_size in batch_sizes:
                                                              save_weights_only=True,
                                                              verbose=1)
 
-            model = cf.create_model(layer1 = layer_size,layer2 = layer_size,num_joints = len(joints))
+            model = nnf.create_model(layer1 = layer_size,layer2 = layer_size,num_joints = len(joints))
 
             if os.path.isdir("training_test_{}".format(filetag)):
                 print(' weights exist for this training set, would you like to load them?')
@@ -72,8 +72,8 @@ for batch_size in batch_sizes:
                     print('exiting...')
                     quit()
 
-            hist_file = '{}{}/history_{}'.format(cf.MODEL_PATH,checkpoint_dir,filetag)
-            model_file = '{}{}/model_{}.h5'.format(cf.MODEL_PATH,checkpoint_dir,filetag)
+            hist_file = '{}{}/history_{}'.format(nnf.MODEL_PATH,checkpoint_dir,filetag)
+            model_file = '{}{}/model_{}.h5'.format(nnf.MODEL_PATH,checkpoint_dir,filetag)
 
             if validation:
                 history = model.fit_generator(generator = training_generator, validation_data = validation_generator, epochs = epochs,callbacks=[cp_callback])

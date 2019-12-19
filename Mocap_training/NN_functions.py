@@ -1,14 +1,10 @@
 import time
 import os
-import itertools
 
 import numpy                as np
 import scipy.io
-from scipy                  import linalg
 import tensorflow           as tf
 from tensorflow.keras.utils import Sequence
-
-from matplotlib             import pyplot as plt
 
 from threading 				import Thread
 
@@ -122,7 +118,7 @@ def getTrialXY(data,fps,batch_size = -1,batch_num = 0,target_fps = TARGET_FPS):
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 class MY_Generator(Sequence):
-    def __init__(self,batch_size,subjects,threading = False,joints = sk.FULL_BODY,target_fps = TARGET_FPS,randomize_direction = False,suppress = False):
+    def __init__(self,batch_size,subjects,threading = False,joints = sk.FULL_BODY,target_fps = TARGET_FPS,randomize_direction = False,init_str = False):
         self.joints = joints
         self.target_fps = target_fps
 
@@ -169,12 +165,12 @@ class MY_Generator(Sequence):
                 time.sleep(0.01)
 
         self.loadData(message = '\ninit fail\n\n')
-        if not suppress:
-            print('\ngenerator init succesful')
+        if init_str is not None:
+            print('\n{} generator init succesful'.format(init_str))
             print('\nnum of batches:  ',len(self),' of size {}'.format(self.batch_size))
             print('num of subjects: ',len(self.subjects))
             print('subjects: {}'.format(dm.array2str(self.subjects,'')))
-            print('{} joints to train\n{} past frames predict\n{} future frames at \n{} fps'.format(len(self.joints),NB,NF,self.target_fps))
+            print('{} joints to observe \n{} past frames predict\n{} future frames at \n{} fps'.format(len(self.joints),NB,NF,self.target_fps))
             print('each frame has shape {}'.format(self.data.shape[1::]))
 
     def __len__(self):
@@ -326,118 +322,3 @@ class DataLoader():
             time.sleep(0.1)
         return self.ret,self.data,self.fps
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-class Weight_Adapter():
-    def __init__(self,model,sampleX):
-
-        weights = model.get_weights();
-        # Initialize per cheng paper on adaptive weights
-        num_joints = sampleX[0].shape[-2]
-        layers = weights[0].shape[1]
-        # Offline trained model - everything but last layer
-        self.U = [weights[i] for i in range(0,len(weights)-2)]
-        self.g = create_model(layer1 =layers, layer2 = layers,num_joints = num_joints,for_adapter = True)
-        # also pass one sample to it to initialize
-        #pdb.set_trace()
-        g_out = self.g.predict(sampleX)
-        self.g.set_weights(self.U)
-
-        #Format adaptive weights. W is in NN format, Theta is column stack of W
-        self.W = weights[-2::]
-        self.Theta = self.W2Theta(self.W)
-
-        # Initialize state variables. X = past window, true value
-        self.Xest = None
-        self.X = None
-        self.Xerr = None
-        self.Xshape = sampleX.shape
-        self.Glength = len(g_out) + 1
-
-        # Adaption Gain
-        self.F = 100 * np.eye(len(self.Theta))
-
-        # Learning parameters
-        self.Lambda1 = 0.998
-        self.Lambda2 = 1.0
-
-        return
-
-    def start(self,X):
-        print('starting...')
-        self.X = X
-        self.Phi   = self.getPhi( self.g.predict(self.X) )
-        self.Xest = np.matmul( self.Phi, self.Theta ).reshape(self.Xshape)
-        # new data flag
-        self.new = False
-        #pdb.set_trace()
-        return
-
-    def feedData(self,X):
-        print('feeding data')
-        self.X = X
-        self.new = True
-        return
-
-    def mainLoop(self):
-        print('mainLoop start')
-        #pdb.set_trace()
-        if not self.new:
-            return
-        self.Xerr  = (self.X - self.Xest)
-        self.Theta = self.updateTheta( self.Theta, self.F, self.Phi, self.Xerr.reshape((-1,1)))
-        self.F     = self.updateF( self.F, self.Phi )
-        self.Phi   = self.getPhi( self.g.predict(self.X) )
-        self.Xest  = np.matmul( self.Phi, self.Theta ).reshape(self.Xshape)
-        self.new = False
-        print('mainLoop end')
-        pdb.set_trace()
-        return
-
-    def getPhi(self,g_out):
-        g_out = np.append(g_out.reshape((1,-1)),1)
-        Phi = g_out
-        for i in range(0,self.W[0].shape[1]-1):
-            Phi = linalg.block_diag(Phi,g_out)
-        return Phi
-
-    def updateF(self,F,Phi):
-        #equation 7 in cheng's paper
-        L1 = self.Lambda1
-        L2 = self.Lambda2
-
-        # Simplfication of writing
-        PhiT = Phi.transpose()
-
-        # Denominator as a matrix
-        scaling = np.linalg.inv(L1 + L2 * np.linalg.multi_dot( [ Phi, F, PhiT ]  ))
-
-        # Scale denominator (9x9 if X is 9x1) to match F (369x369 if 40 hidden layer nodes)
-        dg = np.diag(scaling)
-        Sdiag = np.zeros(Phi.shape[1])
-        for si, s in enumerate(dg):
-            Sdiag[si:si + self.Glength] = s
-        S = np.diag(Sdiag)
-
-        # Evaluate
-        F_plus = 1/L1 * (F  - L2 * np.linalg.multi_dot([F,PhiT,Phi,F,S]))
-        return F_plus
-
-    def updateTheta(self,Theta,F,Phi,error):
-        Theta_plus = self.Theta + np.linalg.multi_dot([F,Phi.transpose(),error])
-        return Theta_plus
-
-
-
-    def W2Theta(self, W):
-        Theta = None
-        for i in range(0,len(W[1])):
-            ti = np.vstack([W[0][:,i].reshape((-1,1)),W[1][i]])
-            if Theta is None:
-                Theta = ti
-            else:
-                Theta = np.vstack([Theta,ti])
-        return Theta
